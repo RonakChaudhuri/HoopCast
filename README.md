@@ -41,14 +41,16 @@ HoopCast is an NBA statcast-style web application that displays advanced statist
 
 1. **Navigate to the backend directory:**
 
-   ```bash
+   ```
+   bash
    cd HoopCast/backend
 
    ```
 
 2. **Create a virtual environment and activate it:**
 
-   ```python -m venv venv
+   ```
+   python -m venv venv
    # Windows:
    venv\Scripts\activate
    # macOS/Linux:
@@ -58,13 +60,15 @@ HoopCast is an NBA statcast-style web application that displays advanced statist
 
 3. **Install Python dependencies:**
 
-   ```pip install fastapi uvicorn psycopg2-binary nba_api python-dotenv
+   ```
+    pip install fastapi uvicorn psycopg2-binary nba_api python-dotenv
 
    ```
 
 4. **Set up environment variables:**
 
-   ```DATABASE=hoopcast
+   ```
+    DATABASE=hoopcast
     USER=your_db_user
     PASSWORD=your_db_password
     HOST=localhost
@@ -72,17 +76,7 @@ HoopCast is an NBA statcast-style web application that displays advanced statist
 
    ```
 
-5. **Set up environment variables:**
-
-   ```DATABASE=hoopcast
-    USER=your_db_user
-    PASSWORD=your_db_password
-    HOST=localhost
-    PORT=5432
-
-   ```
-
-6. **Test the backend:**
+5. **Test the backend:**
 
    Visit http://127.0.0.1:8000/docs to view and test your API endpoints.
 
@@ -90,19 +84,17 @@ HoopCast is an NBA statcast-style web application that displays advanced statist
 
 1. **Navigate to the app (frontend) directory::**
 
-   ```cd HoopCast/app
+   ```
+    cd HoopCast/frontend
 
    ```
 
 2. **Install Node.js dependencies:**
 
-   ```npm install
-
-   ```
-
 3. **Run the Next.js development server:**
 
-   ```npm run dev
+   ```
+   npm run dev
 
    ```
 
