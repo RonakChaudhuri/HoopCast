@@ -52,6 +52,19 @@ class StatPercentiles(BaseModel):
     pts_pct: float
     reb_pct: float
     ast_pct: float
+    
+class TraditionalStats(BaseModel):
+    stat_id: int
+    player_id: int
+    season: str
+    ppg: Optional[float] = None
+    apg: Optional[float] = None
+    rpg: Optional[float] = None
+    spg: Optional[float] = None
+    bpg: Optional[float] = None
+    fg_pct: Optional[float] = None
+    fg3_pct: Optional[float] = None
+    ft_pct: Optional[float] = None
 
 # -----------------------------
 # Endpoints
@@ -291,3 +304,97 @@ def get_player_percentiles_by_name(full_name: str, season: str = "2024-25"):
     finally:
         cur.close()
         conn.close()
+        
+@app.get("/traditional_stats/{player_id}", response_model=TraditionalStats)
+def get_traditional_stats(player_id: int, season: str = "2024-25"):
+    """
+    Retrieve traditional per-game stats for a given player by player_id.
+    """
+    conn = get_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # Notice the AS clauses mapping db columns -> new names
+        cur.execute("""
+            SELECT
+                stat_id,
+                player_id,
+                season,
+                pts_per_game AS ppg,
+                ast_per_game AS apg,
+                reb_per_game AS rpg,
+                stl_per_game AS spg,
+                blk_per_game AS bpg,
+                fg_pct,
+                fg3_pct,
+                ft_pct
+            FROM traditional_stats
+            WHERE player_id = %s AND season = %s;
+        """, (player_id, season))
+        stats = cur.fetchone()
+        if not stats:
+            raise HTTPException(status_code=404, detail="Traditional stats not found for the given player and season")
+        return stats
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.get("/traditional_stats/by-name/{full_name}", response_model=TraditionalStats)
+def get_traditional_stats_by_name(full_name: str, season: str = "2024-25"):
+    """
+    Retrieve traditional per-game stats for a player by a partial match on full name (ignoring diacritics).
+    Returns the stats for the first matching player.
+    """
+    # 1) Lookup player's internal ID
+    conn = get_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        search_param = f"%{full_name}%"
+        cur.execute("""
+            SELECT player_id
+            FROM players
+            WHERE unaccent(full_name) ILIKE unaccent(%s)
+            LIMIT 1;
+        """, (search_param,))
+        player = cur.fetchone()
+        if not player:
+            raise HTTPException(status_code=404, detail="Player not found")
+        player_id = player['player_id']
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cur.close()
+        conn.close()
+
+    # 2) Retrieve traditional stats by player_id
+    conn = get_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT
+                stat_id,
+                player_id,
+                season,
+                pts_per_game AS ppg,
+                ast_per_game AS apg,
+                reb_per_game AS rpg,
+                stl_per_game AS spg,
+                blk_per_game AS bpg,
+                fg_pct,
+                fg3_pct,
+                ft_pct
+            FROM traditional_stats
+            WHERE player_id = %s AND season = %s;
+        """, (player_id, season))
+        stats = cur.fetchone()
+        if not stats:
+            raise HTTPException(status_code=404, detail="Traditional stats not found for the given player and season")
+        return stats
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cur.close()
+        conn.close()
+

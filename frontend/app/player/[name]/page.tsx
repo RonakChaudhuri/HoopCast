@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import SearchBar from "@/app/components/SearchBar";
 import PlayerInfo from "./PlayerInfo";
 import PlayerStats from "./PlayerStats";
-import PlayerNotFound from "@/app/components/PlayerNotFound"; // adjust path if needed
+import PlayerNotFound from "@/app/components/PlayerNotFound";
 
 export default function PlayerPage() {
   const { name } = useParams(); // dynamic route parameter
@@ -14,6 +14,7 @@ export default function PlayerPage() {
   const [playerInfo, setPlayerInfo] = useState<any>(null);
   const [playerStats, setPlayerStats] = useState<any>(null);
   const [playerPercentiles, setPlayerPercentiles] = useState<any>(null);
+  const [traditionalStats, setTraditionalStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState("");
@@ -36,11 +37,15 @@ export default function PlayerPage() {
       fetch(`http://127.0.0.1:8000/stats/percentiles/by-name/${finalName}`).then(
         (res) => (res.ok ? res.json() : Promise.reject("Percentiles not found"))
       ),
+      fetch(`http://127.0.0.1:8000/traditional_stats/by-name/${finalName}`).then(
+        (res) => (res.ok ? res.json() : Promise.reject("Traditional stats not found"))
+      ),
     ])
-      .then(([infoData, statsData, percentilesData]) => {
+      .then(([infoData, statsData, percentilesData, traditionalData]) => {
         setPlayerInfo(infoData);
         setPlayerStats(statsData);
         setPlayerPercentiles(percentilesData);
+        setTraditionalStats(traditionalData);
         setLoading(false);
       })
       .catch((err) => {
@@ -103,7 +108,7 @@ export default function PlayerPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {header}
       <main className="container mx-auto p-4 flex flex-col md:flex-row gap-8">
-        <PlayerInfo playerInfo={playerInfo} />
+        <PlayerInfo playerInfo={playerInfo} traditionalStats={traditionalStats} />
         <PlayerStats
           playerStats={playerStats}
           playerPercentiles={playerPercentiles}
