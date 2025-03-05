@@ -45,7 +45,7 @@ def insert_current_season_stats(player_id, season, adv_stats, trad_stats):
             trad_stats.get('AST')
         ))
         conn.commit()
-        print(f"Inserted/Updated stats for player_id {player_id} for season {season}.")
+        #print(f"Inserted/Updated stats for player_id {player_id} for season {season}.")
     except Exception as e:
         conn.rollback()
         print("Error inserting/updating stats for player_id", player_id, ":", e)
