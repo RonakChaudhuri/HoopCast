@@ -9,7 +9,7 @@ app = FastAPI(title="HoopCast API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # or ["*"] for all origins (use carefully)
+    allow_origins=["http://localhost:3000"],  # Adjust as needed
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -18,7 +18,6 @@ app.add_middleware(
 # -----------------------------
 # Pydantic Models
 # -----------------------------
-#http://127.0.0.1:8000/docs#/
 class Player(BaseModel):
     player_id: int
     full_name: str
@@ -102,18 +101,21 @@ def get_player(player_id: int):
         conn.close()
 
 @app.get("/players/by-name/{full_name}", response_model=Player)
+@app.get("/players/by-name/{full_name}", response_model=Player)
 def get_player_by_name(full_name: str):
     """
-    Retrieve player details by full name (case-insensitive).
+    Retrieve player details by a partial match on full name (case-insensitive),
+    ignoring diacritics. Returns the first matching result.
     """
     conn = get_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        search_param = f"%{full_name}%"
         cur.execute("""
             SELECT player_id, full_name, team, position, TO_CHAR(birthdate, 'YYYY-MM-DD') as birthdate, height, weight 
             FROM players 
-            WHERE full_name ILIKE %s;
-        """, (full_name,))
+            WHERE unaccent(full_name) ILIKE unaccent(%s);
+        """, (search_param,))
         player = cur.fetchone()
         if not player:
             raise HTTPException(status_code=404, detail="Player not found")
@@ -127,7 +129,7 @@ def get_player_by_name(full_name: str):
 @app.get("/stats/{player_id}", response_model=PlayerStats)
 def get_player_stats(player_id: int, season: str = "2024-25"):
     """
-    Retrieve current season stats for a given player.
+    Retrieve current season stats for a given player by player_id.
     """
     conn = get_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -156,7 +158,6 @@ def get_player_percentiles(player_id: int, season: str = "2024-25"):
     conn = get_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        # Compute percentiles for all players in the given season, then filter for the given player.
         query = """
             WITH ranked AS (
                 SELECT 
@@ -188,15 +189,21 @@ def get_player_percentiles(player_id: int, season: str = "2024-25"):
         conn.close()
 
 @app.get("/stats/by-name/{full_name}", response_model=PlayerStats)
+@app.get("/stats/by-name/{full_name}", response_model=PlayerStats)
 def get_player_stats_by_name(full_name: str, season: str = "2024-25"):
-    # Step 1: Lookup player's internal ID by name
+    """
+    Retrieve player's current season stats by a partial match on full name (ignoring diacritics).
+    Returns the stats for the first matching player.
+    """
+    # Step 1: Lookup player's internal ID by partial match on name
     conn = get_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        search_param = f"%{full_name}%"
         cur.execute("""
             SELECT player_id FROM players
-            WHERE full_name ILIKE %s;
-        """, (full_name,))
+            WHERE unaccent(full_name) ILIKE unaccent(%s);
+        """, (search_param,))
         player = cur.fetchone()
         if not player:
             raise HTTPException(status_code=404, detail="Player not found")
@@ -227,15 +234,21 @@ def get_player_stats_by_name(full_name: str, season: str = "2024-25"):
         conn.close()
 
 @app.get("/stats/percentiles/by-name/{full_name}", response_model=StatPercentiles)
+@app.get("/stats/percentiles/by-name/{full_name}", response_model=StatPercentiles)
 def get_player_percentiles_by_name(full_name: str, season: str = "2024-25"):
-    # First, retrieve the player's ID from the players table
+    """
+    Retrieve player's percentile ranks by a partial match on full name (ignoring diacritics) for the specified season.
+    Returns the percentiles for the first matching player.
+    """
+    # Step 1: Retrieve player's ID using partial match with unaccent
     conn = get_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        search_param = f"%{full_name}%"
         cur.execute("""
             SELECT player_id FROM players
-            WHERE full_name ILIKE %s;
-        """, (full_name,))
+            WHERE unaccent(full_name) ILIKE unaccent(%s);
+        """, (search_param,))
         player = cur.fetchone()
         if not player:
             raise HTTPException(status_code=404, detail="Player not found")
@@ -246,7 +259,7 @@ def get_player_percentiles_by_name(full_name: str, season: str = "2024-25"):
         cur.close()
         conn.close()
 
-    # Now, reuse the existing logic to get percentiles by player_id
+    # Step 2: Retrieve percentile stats for the player
     conn = get_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
