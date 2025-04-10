@@ -69,6 +69,9 @@ class TraditionalStats(BaseModel):
 # -----------------------------
 # Endpoints
 # -----------------------------
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to the HoopCast API"}
 
 @app.get("/players", response_model=List[Player])
 def get_players():
