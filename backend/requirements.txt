@@ -1,0 +1,5 @@
+fastapi==0.95.1
+uvicorn==0.22.0
+psycopg2-binary==2.9.6
+nba_api==2.0.1
+python-dotenv==1.0.0
