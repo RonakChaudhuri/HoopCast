@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
 interface SearchBarProps {
@@ -12,7 +12,7 @@ export default function SearchBar({ placeholder = "Search player...", initialVal
   const [query, setQuery] = useState(initialValue);
   const router = useRouter();
 
-  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSearch = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (query.trim()) {
       router.push(`/player/${encodeURIComponent(query)}`);
@@ -31,6 +31,7 @@ export default function SearchBar({ placeholder = "Search player...", initialVal
         />
         <button
           type="submit"
+          title="Search"
           className="absolute right-0 top-0 h-full flex items-center justify-center pr-6"
         >
           <svg
@@ -52,3 +53,4 @@ export default function SearchBar({ placeholder = "Search player...", initialVal
     </form>
   );
 }
+
