@@ -27,6 +27,11 @@ class Player(BaseModel):
     height: Optional[float] = None
     weight: Optional[float] = None
 
+class PlayerSuggestion(BaseModel):
+    player_id: int
+    full_name: str
+    team: Optional[str] = None
+
 class PlayerStats(BaseModel):
     stat_id: int
     player_id: int
@@ -94,6 +99,46 @@ def get_players():
         """)
         players_list = cur.fetchall()
         return players_list
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cur.close()
+        conn.close()
+
+@app.get("/players/search", response_model=List[PlayerSuggestion])
+def search_players(q: str, limit: int = 8):
+    """
+    Search players by name for autocomplete suggestions.
+    """
+    q = q.strip()
+    if not q:
+        return []
+
+    limit = max(1, min(limit, 20))
+    search_param = f"%{q}%"
+    prefix_param = f"{q}%"
+
+    conn = get_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT
+                player_id,
+                full_name,
+                team
+            FROM players
+            WHERE unaccent(full_name) ILIKE unaccent(%s)
+            ORDER BY
+                CASE
+                    WHEN lower(unaccent(full_name)) = lower(unaccent(%s)) THEN 0
+                    WHEN lower(unaccent(full_name)) LIKE lower(unaccent(%s)) THEN 1
+                    ELSE 2
+                END,
+                length(full_name),
+                full_name
+            LIMIT %s;
+        """, (search_param, q, prefix_param, limit))
+        return cur.fetchall()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
