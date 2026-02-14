@@ -5,7 +5,7 @@ import pandas as pd
 advanced_stats = leaguedashplayerstats.LeagueDashPlayerStats(
     measure_type_detailed_defense='Advanced',
     per_mode_detailed='Per36',
-    season="2024-25"
+    season="2025-26"
 )
 
 # Get the data as a DataFrame
@@ -23,7 +23,7 @@ print(lebron_selected_stats)
 # Retrieve league-wide traditional stats in Per36 mode for the current season
 traditional_stats = leaguedashplayerstats.LeagueDashPlayerStats(
     per_mode_detailed='Per36',
-    season="2024-25"
+    season="2025-26"
 )
 
 # Get the data as a DataFrame

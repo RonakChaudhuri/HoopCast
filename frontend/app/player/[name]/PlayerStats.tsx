@@ -11,6 +11,16 @@ export default function PlayerStats({
   playerPercentiles,
   getColorClass,
 }: PlayerStatsProps) {
+  const decimalPercentKeys = new Set(["ts_pct", "usg_pct", "efg_pct"]);
+
+  const formatStatValue = (value: number, key: string) => {
+    if (!Number.isFinite(value)) return "N/A";
+    if (decimalPercentKeys.has(key)) {
+      return `${(value * 100).toFixed(1)}%`;
+    }
+    return value.toFixed(1);
+  };
+
   // Helper for the progress bar background color
   const getBarColorClass = (pct: number) => {
     if (pct >= 80) return "bg-red-500";
@@ -54,7 +64,7 @@ export default function PlayerStats({
               </div>
 
               {/* Stat Value & Percentile */}
-              <span className="min-w-[3rem] text-right">{value}</span>
+              <span className="min-w-[3rem] text-right">{formatStatValue(value, stat.key)}</span>
               <span className={`${getColorClass(pct)} font-bold`}>
                 {Math.round(pct)}%
               </span>

@@ -1,71 +1,107 @@
+import pandas as pd
 from nba_api.stats.endpoints import leaguedashplayerstats
+from nba_api.stats.static import players as nba_players
 from database import get_connection
-import time
+from psycopg2.extras import execute_batch
 
-def fetch_and_store_traditional_stats(season="2024-25"):
-    # Retrieve traditional stats in PerGame mode for the current season.
-    # The default measure type is usually "Traditional".
+
+def _null_if_nan(value):
+    return None if pd.isna(value) else value
+
+
+def _player_id_map(conn):
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT nba_player_id, player_id FROM players;")
+        return {int(nba_id): int(player_id) for nba_id, player_id in cur.fetchall()}
+    finally:
+        cur.close()
+
+
+def _active_nba_player_ids():
+    return {int(player["id"]) for player in nba_players.get_active_players()}
+
+
+def fetch_and_store_traditional_stats(season="2025-26", only_current_players=True):
     traditional = leaguedashplayerstats.LeagueDashPlayerStats(
+        measure_type_detailed_defense="Base",
         per_mode_detailed="PerGame",
-        season=season
+        season=season,
     )
     df = traditional.get_data_frames()[0]
-    print("Fetched traditional stats for", len(df), "players.")
+    allowed_nba_ids = _active_nba_player_ids() if only_current_players else None
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        player_map = _player_id_map(conn)
+        rows = []
+        missing_players = set()
 
-    # Iterate over each row in the DataFrame.
-    for index, row in df.iterrows():
-        player_name = row["PLAYER_NAME"]
-        pts = row["PTS"]
-        ast = row["AST"]
-        reb = row["REB"]
-        stl = row["STL"]
-        blk = row["BLK"]
-        fg_pct = row["FG_PCT"]
-        fg3_pct = row["FG3_PCT"]
-        ft_pct = row["FT_PCT"]
+        for _, row in df.iterrows():
+            nba_player_id = int(row["PLAYER_ID"])
+            if allowed_nba_ids is not None and nba_player_id not in allowed_nba_ids:
+                continue
+            player_id = player_map.get(nba_player_id)
+            if not player_id:
+                missing_players.add(nba_player_id)
+                continue
 
-        # Look up the player's internal ID in your players table.
-        conn = get_connection()
-        cur = conn.cursor()
-        try:
-            # Use a partial match with unaccent so that diacritics are ignored.
-            search_param = f"%{player_name}%"
-            cur.execute("""
-                SELECT player_id FROM players
-                WHERE unaccent(full_name) ILIKE unaccent(%s)
-                LIMIT 1;
-            """, (search_param,))
-            result = cur.fetchone()
-            if result:
-                player_id = result[0]
-                # Insert or update the traditional stats in the database.
-                cur.execute("""
-                    INSERT INTO traditional_stats 
-                      (player_id, season, pts_per_game, ast_per_game, reb_per_game, stl_per_game, blk_per_game, fg_pct, fg3_pct, ft_pct)
-                    VALUES 
-                      (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (player_id, season)
-                    DO UPDATE SET 
-                      pts_per_game = EXCLUDED.pts_per_game,
-                      ast_per_game = EXCLUDED.ast_per_game,
-                      reb_per_game = EXCLUDED.reb_per_game,
-                      stl_per_game = EXCLUDED.stl_per_game,
-                      blk_per_game = EXCLUDED.blk_per_game,
-                      fg_pct = EXCLUDED.fg_pct,
-                      fg3_pct = EXCLUDED.fg3_pct,
-                      ft_pct = EXCLUDED.ft_pct;
-                """, (player_id, season, pts, ast, reb, stl, blk, fg_pct, fg3_pct, ft_pct))
-                conn.commit()
-                print(f"Inserted/Updated traditional stats for {player_name} (player_id: {player_id})")
-            else:
-                print(f"Player not found locally for {player_name}")
-        except Exception as e:
-            conn.rollback()
-            print("Error inserting stats for", player_name, ":", e)
-        finally:
-            cur.close()
-            conn.close()
-        time.sleep(0.1)  # Optional delay to be courteous to the API
+            rows.append((
+                player_id,
+                season,
+                _null_if_nan(row.get("GP")),
+                _null_if_nan(row.get("GS")),
+                _null_if_nan(row.get("MIN")),
+                _null_if_nan(row.get("PTS")),
+                _null_if_nan(row.get("REB")),
+                _null_if_nan(row.get("AST")),
+                _null_if_nan(row.get("STL")),
+                _null_if_nan(row.get("BLK")),
+                _null_if_nan(row.get("TOV")),
+                _null_if_nan(row.get("FG_PCT")),
+                _null_if_nan(row.get("FG3_PCT")),
+                _null_if_nan(row.get("FT_PCT")),
+            ))
+
+        query = """
+            INSERT INTO traditional_stats (
+                player_id, season, gp, gs, min_per_game, pts_per_game, reb_per_game,
+                ast_per_game, stl_per_game, blk_per_game, tov_per_game, fg_pct, fg3_pct, ft_pct
+            )
+            VALUES (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            )
+            ON CONFLICT (player_id, season)
+            DO UPDATE SET
+                gp = EXCLUDED.gp,
+                gs = EXCLUDED.gs,
+                min_per_game = EXCLUDED.min_per_game,
+                pts_per_game = EXCLUDED.pts_per_game,
+                reb_per_game = EXCLUDED.reb_per_game,
+                ast_per_game = EXCLUDED.ast_per_game,
+                stl_per_game = EXCLUDED.stl_per_game,
+                blk_per_game = EXCLUDED.blk_per_game,
+                tov_per_game = EXCLUDED.tov_per_game,
+                fg_pct = EXCLUDED.fg_pct,
+                fg3_pct = EXCLUDED.fg3_pct,
+                ft_pct = EXCLUDED.ft_pct;
+        """
+        execute_batch(cur, query, rows, page_size=250)
+        conn.commit()
+
+        print(f"Completed traditional stats sync for {season}. Rows: {len(rows)}.")
+        if missing_players:
+            print(
+                f"Warning ({season}): skipped {len(missing_players)} players not in players table."
+            )
+    except Exception as e:
+        conn.rollback()
+        print(f"Error inserting traditional stats for {season}: {e}")
+        raise
+    finally:
+        cur.close()
+        conn.close()
+
 
 if __name__ == "__main__":
     fetch_and_store_traditional_stats()

@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import SearchBar from "@/app/components/SearchBar";
 import PlayerInfo from "./PlayerInfo";
 import PlayerStats from "./PlayerStats";
 import PlayerNotFound from "@/app/components/PlayerNotFound";
 
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
+const DEFAULT_SEASON = process.env.NEXT_PUBLIC_DEFAULT_SEASON || "2025-26";
+
 export default function PlayerPage() {
   const { name } = useParams(); // dynamic route parameter
-  const router = useRouter();
 
   const [playerInfo, setPlayerInfo] = useState<any>(null);
   const [playerStats, setPlayerStats] = useState<any>(null);
@@ -22,22 +24,28 @@ export default function PlayerPage() {
   useEffect(() => {
     if (!name) return;
 
+    setLoading(true);
+    setNotFound(false);
+    setError("");
+
     const playerName = Array.isArray(name) ? name[0] : name;
     const decodedName = decodeURIComponent(playerName).trim();
     const finalName = encodeURIComponent(decodedName);
     console.log("Searching for player:", decodedName);
 
+    const seasonQuery = `?season=${encodeURIComponent(DEFAULT_SEASON)}`;
+
     Promise.all([
-      fetch(`http://127.0.0.1:8000/players/by-name/${finalName}`).then(
+      fetch(`${API_BASE_URL}/players/by-name/${finalName}`).then(
         (res) => (res.ok ? res.json() : Promise.reject("Player not found"))
       ),
-      fetch(`http://127.0.0.1:8000/stats/by-name/${finalName}`).then(
+      fetch(`${API_BASE_URL}/stats/by-name/${finalName}${seasonQuery}`).then(
         (res) => (res.ok ? res.json() : Promise.reject("Stats not found"))
       ),
-      fetch(`http://127.0.0.1:8000/stats/percentiles/by-name/${finalName}`).then(
+      fetch(`${API_BASE_URL}/stats/percentiles/by-name/${finalName}${seasonQuery}`).then(
         (res) => (res.ok ? res.json() : Promise.reject("Percentiles not found"))
       ),
-      fetch(`http://127.0.0.1:8000/traditional_stats/by-name/${finalName}`).then(
+      fetch(`${API_BASE_URL}/traditional_stats/by-name/${finalName}${seasonQuery}`).then(
         (res) => (res.ok ? res.json() : Promise.reject("Traditional stats not found"))
       ),
     ])
@@ -60,10 +68,6 @@ export default function PlayerPage() {
       });
   }, [name]);
 
-  if (loading) {
-    return <div className="p-4">Loading...</div>;
-  }
-
   // Always render the header
   const header = (
     <header className="p-4 border-b border-gray-200 dark:border-gray-700">
@@ -76,7 +80,15 @@ export default function PlayerPage() {
     </header>
   );
 
-  if (notFound) {
+  if (loading && !playerInfo) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        {header}
+      </div>
+    );
+  }
+
+  if (!loading && notFound) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         {header}
@@ -87,7 +99,7 @@ export default function PlayerPage() {
     );
   }
 
-  if (error) {
+  if (!loading && error) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         {header}

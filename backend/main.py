@@ -82,7 +82,14 @@ def get_players():
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute("""
-            SELECT player_id, full_name, team, position, birthdate, height, weight 
+            SELECT
+                player_id,
+                full_name,
+                team,
+                position,
+                birthdate,
+                height_in AS height,
+                weight_lbs AS weight
             FROM players;
         """)
         players_list = cur.fetchall()
@@ -102,7 +109,14 @@ def get_player(player_id: int):
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute("""
-            SELECT player_id, full_name, team, position, TO_CHAR(birthdate, 'YYYY-MM-DD') as birthdate, height, weight 
+            SELECT
+                player_id,
+                full_name,
+                team,
+                position,
+                TO_CHAR(birthdate, 'YYYY-MM-DD') as birthdate,
+                height_in AS height,
+                weight_lbs AS weight
             FROM players 
             WHERE player_id = %s;
         """, (player_id,))
@@ -128,7 +142,14 @@ def get_player_by_name(full_name: str):
     try:
         search_param = f"%{full_name}%"
         cur.execute("""
-            SELECT player_id, full_name, team, position, TO_CHAR(birthdate, 'YYYY-MM-DD') as birthdate, height, weight 
+            SELECT
+                player_id,
+                full_name,
+                team,
+                position,
+                TO_CHAR(birthdate, 'YYYY-MM-DD') as birthdate,
+                height_in AS height,
+                weight_lbs AS weight
             FROM players 
             WHERE unaccent(full_name) ILIKE unaccent(%s);
         """, (search_param,))
@@ -143,7 +164,7 @@ def get_player_by_name(full_name: str):
         conn.close()
 
 @app.get("/stats/{player_id}", response_model=PlayerStats)
-def get_player_stats(player_id: int, season: str = "2024-25"):
+def get_player_stats(player_id: int, season: str = "2025-26"):
     """
     Retrieve current season stats for a given player by player_id.
     """
@@ -151,9 +172,24 @@ def get_player_stats(player_id: int, season: str = "2024-25"):
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute("""
-            SELECT stat_id, player_id, season, off_rating, def_rating, ts_pct, usg_pct, efg_pct, pie, pts, reb, ast
-            FROM current_season_stats
-            WHERE player_id = %s AND season = %s;
+            SELECT
+                a.stat_id,
+                a.player_id,
+                a.season,
+                a.off_rating,
+                a.def_rating,
+                a.ts_pct,
+                a.usg_pct,
+                a.efg_pct,
+                a.pie,
+                CASE WHEN t.min_per_game > 0 THEN (t.pts_per_game * 36.0 / t.min_per_game) END AS pts,
+                CASE WHEN t.min_per_game > 0 THEN (t.reb_per_game * 36.0 / t.min_per_game) END AS reb,
+                CASE WHEN t.min_per_game > 0 THEN (t.ast_per_game * 36.0 / t.min_per_game) END AS ast
+            FROM advanced_stats a
+            LEFT JOIN traditional_stats t
+              ON t.player_id = a.player_id
+             AND t.season = a.season
+            WHERE a.player_id = %s AND a.season = %s;
         """, (player_id, season))
         stats = cur.fetchone()
         if not stats:
@@ -166,7 +202,7 @@ def get_player_stats(player_id: int, season: str = "2024-25"):
         conn.close()
 
 @app.get("/stats/percentiles/{player_id}", response_model=StatPercentiles)
-def get_player_percentiles(player_id: int, season: str = "2024-25"):
+def get_player_percentiles(player_id: int, season: str = "2025-26"):
     """
     Retrieve percentile ranks for each stat for a given player for the specified season.
     Uses PostgreSQL window functions to compute percentile ranks across all players.
@@ -175,8 +211,26 @@ def get_player_percentiles(player_id: int, season: str = "2024-25"):
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         query = """
-            WITH ranked AS (
+            WITH base AS (
                 SELECT 
+                    a.player_id,
+                    a.off_rating,
+                    a.def_rating,
+                    a.ts_pct,
+                    a.usg_pct,
+                    a.efg_pct,
+                    a.pie,
+                    CASE WHEN t.min_per_game > 0 THEN (t.pts_per_game * 36.0 / t.min_per_game) END AS pts,
+                    CASE WHEN t.min_per_game > 0 THEN (t.reb_per_game * 36.0 / t.min_per_game) END AS reb,
+                    CASE WHEN t.min_per_game > 0 THEN (t.ast_per_game * 36.0 / t.min_per_game) END AS ast
+                FROM advanced_stats a
+                LEFT JOIN traditional_stats t
+                  ON t.player_id = a.player_id
+                 AND t.season = a.season
+                WHERE a.season = %s
+            ),
+            ranked AS (
+                SELECT
                     player_id,
                     (1 - PERCENT_RANK() OVER (ORDER BY off_rating DESC)) * 100 AS off_rating_pct,
                     (1 - PERCENT_RANK() OVER (ORDER BY def_rating ASC)) * 100 AS def_rating_pct,
@@ -187,8 +241,7 @@ def get_player_percentiles(player_id: int, season: str = "2024-25"):
                     (1 - PERCENT_RANK() OVER (ORDER BY pts DESC)) * 100 AS pts_pct,
                     (1 - PERCENT_RANK() OVER (ORDER BY reb DESC)) * 100 AS reb_pct,
                     (1 - PERCENT_RANK() OVER (ORDER BY ast DESC)) * 100 AS ast_pct
-                FROM current_season_stats
-                WHERE season = %s
+                FROM base
             )
             SELECT * FROM ranked
             WHERE player_id = %s;
@@ -206,7 +259,7 @@ def get_player_percentiles(player_id: int, season: str = "2024-25"):
 
 @app.get("/stats/by-name/{full_name}", response_model=PlayerStats)
 @app.get("/stats/by-name/{full_name}", response_model=PlayerStats)
-def get_player_stats_by_name(full_name: str, season: str = "2024-25"):
+def get_player_stats_by_name(full_name: str, season: str = "2025-26"):
     """
     Retrieve player's current season stats by a partial match on full name (ignoring diacritics).
     Returns the stats for the first matching player.
@@ -235,9 +288,24 @@ def get_player_stats_by_name(full_name: str, season: str = "2024-25"):
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute("""
-            SELECT stat_id, player_id, season, off_rating, def_rating, ts_pct, usg_pct, efg_pct, pie, pts, reb, ast
-            FROM current_season_stats
-            WHERE player_id = %s AND season = %s;
+            SELECT
+                a.stat_id,
+                a.player_id,
+                a.season,
+                a.off_rating,
+                a.def_rating,
+                a.ts_pct,
+                a.usg_pct,
+                a.efg_pct,
+                a.pie,
+                CASE WHEN t.min_per_game > 0 THEN (t.pts_per_game * 36.0 / t.min_per_game) END AS pts,
+                CASE WHEN t.min_per_game > 0 THEN (t.reb_per_game * 36.0 / t.min_per_game) END AS reb,
+                CASE WHEN t.min_per_game > 0 THEN (t.ast_per_game * 36.0 / t.min_per_game) END AS ast
+            FROM advanced_stats a
+            LEFT JOIN traditional_stats t
+              ON t.player_id = a.player_id
+             AND t.season = a.season
+            WHERE a.player_id = %s AND a.season = %s;
         """, (player_id, season))
         stats = cur.fetchone()
         if not stats:
@@ -251,7 +319,7 @@ def get_player_stats_by_name(full_name: str, season: str = "2024-25"):
 
 @app.get("/stats/percentiles/by-name/{full_name}", response_model=StatPercentiles)
 @app.get("/stats/percentiles/by-name/{full_name}", response_model=StatPercentiles)
-def get_player_percentiles_by_name(full_name: str, season: str = "2024-25"):
+def get_player_percentiles_by_name(full_name: str, season: str = "2025-26"):
     """
     Retrieve player's percentile ranks by a partial match on full name (ignoring diacritics) for the specified season.
     Returns the percentiles for the first matching player.
@@ -280,8 +348,26 @@ def get_player_percentiles_by_name(full_name: str, season: str = "2024-25"):
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         query = """
-            WITH ranked AS (
+            WITH base AS (
                 SELECT 
+                    a.player_id,
+                    a.off_rating,
+                    a.def_rating,
+                    a.ts_pct,
+                    a.usg_pct,
+                    a.efg_pct,
+                    a.pie,
+                    CASE WHEN t.min_per_game > 0 THEN (t.pts_per_game * 36.0 / t.min_per_game) END AS pts,
+                    CASE WHEN t.min_per_game > 0 THEN (t.reb_per_game * 36.0 / t.min_per_game) END AS reb,
+                    CASE WHEN t.min_per_game > 0 THEN (t.ast_per_game * 36.0 / t.min_per_game) END AS ast
+                FROM advanced_stats a
+                LEFT JOIN traditional_stats t
+                  ON t.player_id = a.player_id
+                 AND t.season = a.season
+                WHERE a.season = %s
+            ),
+            ranked AS (
+                SELECT
                     player_id,
                     (1 - PERCENT_RANK() OVER (ORDER BY off_rating DESC)) * 100 AS off_rating_pct,
                     (1 - PERCENT_RANK() OVER (ORDER BY def_rating ASC)) * 100 AS def_rating_pct,
@@ -292,8 +378,7 @@ def get_player_percentiles_by_name(full_name: str, season: str = "2024-25"):
                     (1 - PERCENT_RANK() OVER (ORDER BY pts DESC)) * 100 AS pts_pct,
                     (1 - PERCENT_RANK() OVER (ORDER BY reb DESC)) * 100 AS reb_pct,
                     (1 - PERCENT_RANK() OVER (ORDER BY ast DESC)) * 100 AS ast_pct
-                FROM current_season_stats
-                WHERE season = %s
+                FROM base
             )
             SELECT * FROM ranked WHERE player_id = %s;
         """
@@ -309,7 +394,7 @@ def get_player_percentiles_by_name(full_name: str, season: str = "2024-25"):
         conn.close()
         
 @app.get("/traditional_stats/{player_id}", response_model=TraditionalStats)
-def get_traditional_stats(player_id: int, season: str = "2024-25"):
+def get_traditional_stats(player_id: int, season: str = "2025-26"):
     """
     Retrieve traditional per-game stats for a given player by player_id.
     """
@@ -345,7 +430,7 @@ def get_traditional_stats(player_id: int, season: str = "2024-25"):
 
 
 @app.get("/traditional_stats/by-name/{full_name}", response_model=TraditionalStats)
-def get_traditional_stats_by_name(full_name: str, season: str = "2024-25"):
+def get_traditional_stats_by_name(full_name: str, season: str = "2025-26"):
     """
     Retrieve traditional per-game stats for a player by a partial match on full name (ignoring diacritics).
     Returns the stats for the first matching player.

@@ -59,6 +59,11 @@ function convertInchesToFeetAndInches(value: number): string {
   return `${feet}'${inches}"`;
 }
 
+function formatRateToPercent(value: number): string {
+  if (!Number.isFinite(value)) return "N/A";
+  return `${(value * 100).toFixed(1)}%`;
+}
+
 export default function PlayerInfo({ playerInfo, traditionalStats }: PlayerInfoProps) {
   // Calculate age from birthdate
   const age = getAgeFromBirthdate(playerInfo.birthdate);
@@ -128,9 +133,9 @@ export default function PlayerInfo({ playerInfo, traditionalStats }: PlayerInfoP
                 <td className="p-2">{traditionalStats.rpg}</td>
                 <td className="p-2">{traditionalStats.spg}</td>
                 <td className="p-2">{traditionalStats.bpg}</td>
-                <td className="p-2">{traditionalStats.fg_pct}%</td>
-                <td className="p-2">{traditionalStats.fg3_pct}%</td>
-                <td className="p-2">{traditionalStats.ft_pct}%</td>
+                <td className="p-2">{formatRateToPercent(traditionalStats.fg_pct)}</td>
+                <td className="p-2">{formatRateToPercent(traditionalStats.fg3_pct)}</td>
+                <td className="p-2">{formatRateToPercent(traditionalStats.ft_pct)}</td>
               </tr>
             </tbody>
           </table>
