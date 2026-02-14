@@ -45,18 +45,40 @@ class PlayerStats(BaseModel):
     pts: Optional[float] = None
     reb: Optional[float] = None
     ast: Optional[float] = None
+    stl: Optional[float] = None
+    blk: Optional[float] = None
+    off_rating_on_court: Optional[float] = None
+    off_rating_off_court: Optional[float] = None
+    def_rating_on_court: Optional[float] = None
+    def_rating_off_court: Optional[float] = None
+    net_rating_on_court: Optional[float] = None
+    net_rating_off_court: Optional[float] = None
+    off_rating_on_off_diff: Optional[float] = None
+    def_rating_on_off_diff: Optional[float] = None
+    net_rating_on_off_diff: Optional[float] = None
 
 class StatPercentiles(BaseModel):
     player_id: int
-    off_rating_pct: float
-    def_rating_pct: float
-    ts_pct_pct: float
-    usg_pct_pct: float
-    efg_pct_pct: float
-    pie_pct: float
-    pts_pct: float
-    reb_pct: float
-    ast_pct: float
+    off_rating_pct: Optional[float] = None
+    def_rating_pct: Optional[float] = None
+    ts_pct_pct: Optional[float] = None
+    usg_pct_pct: Optional[float] = None
+    efg_pct_pct: Optional[float] = None
+    pie_pct: Optional[float] = None
+    pts_pct: Optional[float] = None
+    reb_pct: Optional[float] = None
+    ast_pct: Optional[float] = None
+    stl_pct: Optional[float] = None
+    blk_pct: Optional[float] = None
+    off_rating_on_court_pct: Optional[float] = None
+    off_rating_off_court_pct: Optional[float] = None
+    def_rating_on_court_pct: Optional[float] = None
+    def_rating_off_court_pct: Optional[float] = None
+    net_rating_on_court_pct: Optional[float] = None
+    net_rating_off_court_pct: Optional[float] = None
+    off_rating_on_off_diff_pct: Optional[float] = None
+    def_rating_on_off_diff_pct: Optional[float] = None
+    net_rating_on_off_diff_pct: Optional[float] = None
     
 class TraditionalStats(BaseModel):
     stat_id: int
@@ -227,9 +249,20 @@ def get_player_stats(player_id: int, season: str = "2025-26"):
                 a.usg_pct,
                 a.efg_pct,
                 a.pie,
+                a.off_rating_on_court,
+                a.off_rating_off_court,
+                a.def_rating_on_court,
+                a.def_rating_off_court,
+                a.net_rating_on_court,
+                a.net_rating_off_court,
+                a.off_rating_on_off_diff,
+                a.def_rating_on_off_diff,
+                a.net_rating_on_off_diff,
                 CASE WHEN t.min_per_game > 0 THEN (t.pts_per_game * 36.0 / t.min_per_game) END AS pts,
                 CASE WHEN t.min_per_game > 0 THEN (t.reb_per_game * 36.0 / t.min_per_game) END AS reb,
-                CASE WHEN t.min_per_game > 0 THEN (t.ast_per_game * 36.0 / t.min_per_game) END AS ast
+                CASE WHEN t.min_per_game > 0 THEN (t.ast_per_game * 36.0 / t.min_per_game) END AS ast,
+                CASE WHEN t.min_per_game > 0 THEN (t.stl_per_game * 36.0 / t.min_per_game) END AS stl,
+                CASE WHEN t.min_per_game > 0 THEN (t.blk_per_game * 36.0 / t.min_per_game) END AS blk
             FROM advanced_stats a
             LEFT JOIN traditional_stats t
               ON t.player_id = a.player_id
@@ -265,9 +298,20 @@ def get_player_percentiles(player_id: int, season: str = "2025-26"):
                     a.usg_pct,
                     a.efg_pct,
                     a.pie,
+                    a.off_rating_on_court,
+                    a.off_rating_off_court,
+                    a.def_rating_on_court,
+                    a.def_rating_off_court,
+                    a.net_rating_on_court,
+                    a.net_rating_off_court,
+                    a.off_rating_on_off_diff,
+                    a.def_rating_on_off_diff,
+                    a.net_rating_on_off_diff,
                     CASE WHEN t.min_per_game > 0 THEN (t.pts_per_game * 36.0 / t.min_per_game) END AS pts,
                     CASE WHEN t.min_per_game > 0 THEN (t.reb_per_game * 36.0 / t.min_per_game) END AS reb,
-                    CASE WHEN t.min_per_game > 0 THEN (t.ast_per_game * 36.0 / t.min_per_game) END AS ast
+                    CASE WHEN t.min_per_game > 0 THEN (t.ast_per_game * 36.0 / t.min_per_game) END AS ast,
+                    CASE WHEN t.min_per_game > 0 THEN (t.stl_per_game * 36.0 / t.min_per_game) END AS stl,
+                    CASE WHEN t.min_per_game > 0 THEN (t.blk_per_game * 36.0 / t.min_per_game) END AS blk
                 FROM advanced_stats a
                 LEFT JOIN traditional_stats t
                   ON t.player_id = a.player_id
@@ -285,7 +329,18 @@ def get_player_percentiles(player_id: int, season: str = "2025-26"):
                     (1 - PERCENT_RANK() OVER (ORDER BY pie DESC)) * 100 AS pie_pct,
                     (1 - PERCENT_RANK() OVER (ORDER BY pts DESC)) * 100 AS pts_pct,
                     (1 - PERCENT_RANK() OVER (ORDER BY reb DESC)) * 100 AS reb_pct,
-                    (1 - PERCENT_RANK() OVER (ORDER BY ast DESC)) * 100 AS ast_pct
+                    (1 - PERCENT_RANK() OVER (ORDER BY ast DESC)) * 100 AS ast_pct,
+                    (1 - PERCENT_RANK() OVER (ORDER BY stl DESC)) * 100 AS stl_pct,
+                    (1 - PERCENT_RANK() OVER (ORDER BY blk DESC)) * 100 AS blk_pct,
+                    (1 - PERCENT_RANK() OVER (ORDER BY off_rating_on_court DESC)) * 100 AS off_rating_on_court_pct,
+                    (1 - PERCENT_RANK() OVER (ORDER BY off_rating_off_court DESC)) * 100 AS off_rating_off_court_pct,
+                    (1 - PERCENT_RANK() OVER (ORDER BY def_rating_on_court ASC)) * 100 AS def_rating_on_court_pct,
+                    (1 - PERCENT_RANK() OVER (ORDER BY def_rating_off_court ASC)) * 100 AS def_rating_off_court_pct,
+                    (1 - PERCENT_RANK() OVER (ORDER BY net_rating_on_court DESC)) * 100 AS net_rating_on_court_pct,
+                    (1 - PERCENT_RANK() OVER (ORDER BY net_rating_off_court DESC)) * 100 AS net_rating_off_court_pct,
+                    (1 - PERCENT_RANK() OVER (ORDER BY off_rating_on_off_diff DESC)) * 100 AS off_rating_on_off_diff_pct,
+                    (1 - PERCENT_RANK() OVER (ORDER BY def_rating_on_off_diff ASC)) * 100 AS def_rating_on_off_diff_pct,
+                    (1 - PERCENT_RANK() OVER (ORDER BY net_rating_on_off_diff DESC)) * 100 AS net_rating_on_off_diff_pct
                 FROM base
             )
             SELECT * FROM ranked
@@ -343,9 +398,20 @@ def get_player_stats_by_name(full_name: str, season: str = "2025-26"):
                 a.usg_pct,
                 a.efg_pct,
                 a.pie,
+                a.off_rating_on_court,
+                a.off_rating_off_court,
+                a.def_rating_on_court,
+                a.def_rating_off_court,
+                a.net_rating_on_court,
+                a.net_rating_off_court,
+                a.off_rating_on_off_diff,
+                a.def_rating_on_off_diff,
+                a.net_rating_on_off_diff,
                 CASE WHEN t.min_per_game > 0 THEN (t.pts_per_game * 36.0 / t.min_per_game) END AS pts,
                 CASE WHEN t.min_per_game > 0 THEN (t.reb_per_game * 36.0 / t.min_per_game) END AS reb,
-                CASE WHEN t.min_per_game > 0 THEN (t.ast_per_game * 36.0 / t.min_per_game) END AS ast
+                CASE WHEN t.min_per_game > 0 THEN (t.ast_per_game * 36.0 / t.min_per_game) END AS ast,
+                CASE WHEN t.min_per_game > 0 THEN (t.stl_per_game * 36.0 / t.min_per_game) END AS stl,
+                CASE WHEN t.min_per_game > 0 THEN (t.blk_per_game * 36.0 / t.min_per_game) END AS blk
             FROM advanced_stats a
             LEFT JOIN traditional_stats t
               ON t.player_id = a.player_id
@@ -402,9 +468,20 @@ def get_player_percentiles_by_name(full_name: str, season: str = "2025-26"):
                     a.usg_pct,
                     a.efg_pct,
                     a.pie,
+                    a.off_rating_on_court,
+                    a.off_rating_off_court,
+                    a.def_rating_on_court,
+                    a.def_rating_off_court,
+                    a.net_rating_on_court,
+                    a.net_rating_off_court,
+                    a.off_rating_on_off_diff,
+                    a.def_rating_on_off_diff,
+                    a.net_rating_on_off_diff,
                     CASE WHEN t.min_per_game > 0 THEN (t.pts_per_game * 36.0 / t.min_per_game) END AS pts,
                     CASE WHEN t.min_per_game > 0 THEN (t.reb_per_game * 36.0 / t.min_per_game) END AS reb,
-                    CASE WHEN t.min_per_game > 0 THEN (t.ast_per_game * 36.0 / t.min_per_game) END AS ast
+                    CASE WHEN t.min_per_game > 0 THEN (t.ast_per_game * 36.0 / t.min_per_game) END AS ast,
+                    CASE WHEN t.min_per_game > 0 THEN (t.stl_per_game * 36.0 / t.min_per_game) END AS stl,
+                    CASE WHEN t.min_per_game > 0 THEN (t.blk_per_game * 36.0 / t.min_per_game) END AS blk
                 FROM advanced_stats a
                 LEFT JOIN traditional_stats t
                   ON t.player_id = a.player_id
@@ -422,7 +499,18 @@ def get_player_percentiles_by_name(full_name: str, season: str = "2025-26"):
                     (1 - PERCENT_RANK() OVER (ORDER BY pie DESC)) * 100 AS pie_pct,
                     (1 - PERCENT_RANK() OVER (ORDER BY pts DESC)) * 100 AS pts_pct,
                     (1 - PERCENT_RANK() OVER (ORDER BY reb DESC)) * 100 AS reb_pct,
-                    (1 - PERCENT_RANK() OVER (ORDER BY ast DESC)) * 100 AS ast_pct
+                    (1 - PERCENT_RANK() OVER (ORDER BY ast DESC)) * 100 AS ast_pct,
+                    (1 - PERCENT_RANK() OVER (ORDER BY stl DESC)) * 100 AS stl_pct,
+                    (1 - PERCENT_RANK() OVER (ORDER BY blk DESC)) * 100 AS blk_pct,
+                    (1 - PERCENT_RANK() OVER (ORDER BY off_rating_on_court DESC)) * 100 AS off_rating_on_court_pct,
+                    (1 - PERCENT_RANK() OVER (ORDER BY off_rating_off_court DESC)) * 100 AS off_rating_off_court_pct,
+                    (1 - PERCENT_RANK() OVER (ORDER BY def_rating_on_court ASC)) * 100 AS def_rating_on_court_pct,
+                    (1 - PERCENT_RANK() OVER (ORDER BY def_rating_off_court ASC)) * 100 AS def_rating_off_court_pct,
+                    (1 - PERCENT_RANK() OVER (ORDER BY net_rating_on_court DESC)) * 100 AS net_rating_on_court_pct,
+                    (1 - PERCENT_RANK() OVER (ORDER BY net_rating_off_court DESC)) * 100 AS net_rating_off_court_pct,
+                    (1 - PERCENT_RANK() OVER (ORDER BY off_rating_on_off_diff DESC)) * 100 AS off_rating_on_off_diff_pct,
+                    (1 - PERCENT_RANK() OVER (ORDER BY def_rating_on_off_diff ASC)) * 100 AS def_rating_on_off_diff_pct,
+                    (1 - PERCENT_RANK() OVER (ORDER BY net_rating_on_off_diff DESC)) * 100 AS net_rating_on_off_diff_pct
                 FROM base
             )
             SELECT * FROM ranked WHERE player_id = %s;

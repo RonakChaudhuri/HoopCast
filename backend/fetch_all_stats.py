@@ -1,6 +1,6 @@
 import time
 import pandas as pd
-from nba_api.stats.endpoints import leaguedashplayerstats
+from nba_api.stats.endpoints import leaguedashplayerstats, teamplayeronoffsummary
 from nba_api.stats.static import players as nba_players
 from database import get_connection
 from psycopg2.extras import execute_batch
@@ -31,16 +31,73 @@ def _active_nba_player_ids():
     return {int(player["id"]) for player in nba_players.get_active_players()}
 
 
+def _safe_int(value):
+    if pd.isna(value):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _build_on_off_map(season, team_ids):
+    """
+    Fetch team-level player on/off summary and return a map keyed by nba_player_id.
+    """
+    on_off_by_player = {}
+
+    for team_id in sorted(team_ids):
+        try:
+            endpoint = teamplayeronoffsummary.TeamPlayerOnOffSummary(
+                team_id=team_id,
+                season=season,
+                measure_type_detailed_defense="Advanced",
+                per_mode_detailed="Per100Possessions",
+            )
+            data_frames = endpoint.get_data_frames()
+            if len(data_frames) < 3:
+                continue
+
+            on_off_frames = data_frames[1:3]
+
+            for frame in on_off_frames:
+                for _, row in frame.iterrows():
+                    nba_player_id = _safe_int(row.get("VS_PLAYER_ID"))
+                    if not nba_player_id:
+                        continue
+
+                    status = str(row.get("COURT_STATUS") or "").strip().lower()
+                    player_metrics = on_off_by_player.setdefault(nba_player_id, {})
+
+                    if "off" in status:
+                        player_metrics["off_rating_off_court"] = _null_if_nan(row.get("OFF_RATING"))
+                        player_metrics["def_rating_off_court"] = _null_if_nan(row.get("DEF_RATING"))
+                        player_metrics["net_rating_off_court"] = _null_if_nan(row.get("NET_RATING"))
+                    elif "on" in status:
+                        player_metrics["off_rating_on_court"] = _null_if_nan(row.get("OFF_RATING"))
+                        player_metrics["def_rating_on_court"] = _null_if_nan(row.get("DEF_RATING"))
+                        player_metrics["net_rating_on_court"] = _null_if_nan(row.get("NET_RATING"))
+
+            time.sleep(0.15)
+        except Exception as e:
+            print(f"Warning ({season}): unable to fetch on/off for team_id={team_id}: {e}")
+
+    return on_off_by_player
+
+
 def _upsert_advanced_stats(conn, rows):
     if not rows:
         return
     query = """
         INSERT INTO advanced_stats (
             player_id, season, gp, min_per_game, off_rating, def_rating, net_rating,
-            ts_pct, usg_pct, efg_pct, pie, pace, ast_pct, reb_pct, oreb_pct, dreb_pct, tm_tov_pct
+            ts_pct, usg_pct, efg_pct, pie, pace, ast_pct, reb_pct, oreb_pct, dreb_pct, tm_tov_pct,
+            off_rating_on_court, off_rating_off_court, def_rating_on_court, def_rating_off_court,
+            net_rating_on_court, net_rating_off_court, off_rating_on_off_diff,
+            def_rating_on_off_diff, net_rating_on_off_diff
         )
         VALUES (
-            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
         )
         ON CONFLICT (player_id, season)
         DO UPDATE SET
@@ -58,7 +115,16 @@ def _upsert_advanced_stats(conn, rows):
             reb_pct = EXCLUDED.reb_pct,
             oreb_pct = EXCLUDED.oreb_pct,
             dreb_pct = EXCLUDED.dreb_pct,
-            tm_tov_pct = EXCLUDED.tm_tov_pct;
+            tm_tov_pct = EXCLUDED.tm_tov_pct,
+            off_rating_on_court = EXCLUDED.off_rating_on_court,
+            off_rating_off_court = EXCLUDED.off_rating_off_court,
+            def_rating_on_court = EXCLUDED.def_rating_on_court,
+            def_rating_off_court = EXCLUDED.def_rating_off_court,
+            net_rating_on_court = EXCLUDED.net_rating_on_court,
+            net_rating_off_court = EXCLUDED.net_rating_off_court,
+            off_rating_on_off_diff = EXCLUDED.off_rating_on_off_diff,
+            def_rating_on_off_diff = EXCLUDED.def_rating_on_off_diff,
+            net_rating_on_off_diff = EXCLUDED.net_rating_on_off_diff;
     """
     cur = conn.cursor()
     try:
@@ -115,6 +181,18 @@ def fetch_and_store_season_stats(season, only_current_players=True):
     df_adv = advanced.get_data_frames()[0]
     df_trad = traditional.get_data_frames()[0]
     allowed_nba_ids = _active_nba_player_ids() if only_current_players else None
+    if allowed_nba_ids is not None:
+        player_ids = pd.to_numeric(df_adv["PLAYER_ID"], errors="coerce")
+        filtered_adv = df_adv[player_ids.isin(allowed_nba_ids)]
+    else:
+        filtered_adv = df_adv
+
+    team_ids = set()
+    for team_id in filtered_adv.get("TEAM_ID", []):
+        team_id_int = _safe_int(team_id)
+        if team_id_int:
+            team_ids.add(team_id_int)
+    on_off_map = _build_on_off_map(season, team_ids)
 
     conn = get_connection()
     try:
@@ -132,6 +210,14 @@ def fetch_and_store_season_stats(season, only_current_players=True):
             if not player_id:
                 missing_players.add(nba_player_id)
                 continue
+
+            player_on_off = on_off_map.get(nba_player_id, {})
+            off_on = player_on_off.get("off_rating_on_court")
+            off_off = player_on_off.get("off_rating_off_court")
+            def_on = player_on_off.get("def_rating_on_court")
+            def_off = player_on_off.get("def_rating_off_court")
+            net_on = player_on_off.get("net_rating_on_court")
+            net_off = player_on_off.get("net_rating_off_court")
 
             adv_rows.append((
                 player_id,
@@ -151,6 +237,15 @@ def fetch_and_store_season_stats(season, only_current_players=True):
                 _null_if_nan(row.get("OREB_PCT")),
                 _null_if_nan(row.get("DREB_PCT")),
                 _null_if_nan(row.get("TM_TOV_PCT")),
+                off_on,
+                off_off,
+                def_on,
+                def_off,
+                net_on,
+                net_off,
+                (off_on - off_off) if off_on is not None and off_off is not None else None,
+                (def_on - def_off) if def_on is not None and def_off is not None else None,
+                (net_on - net_off) if net_on is not None and net_off is not None else None,
             ))
 
         for _, row in df_trad.iterrows():
