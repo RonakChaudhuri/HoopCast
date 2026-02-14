@@ -40,7 +40,8 @@ export default function PlayerStats({
     return `${Math.round(pct)}%`;
   };
 
-  const getPctValue = (pctKey: string) => {
+  const getPctValue = (pctKey: string, hasValue: boolean) => {
+    if (!hasValue) return 0;
     const value = playerPercentiles[pctKey];
     return Number.isFinite(value) ? value : 0;
   };
@@ -88,7 +89,8 @@ export default function PlayerStats({
         {statsConfig.map((stat) => {
           const value = playerStats[stat.key];
           const pct = playerPercentiles[stat.pctKey]; // 0-100
-          const pctValue = getPctValue(stat.pctKey);
+          const hasValue = Number.isFinite(value);
+          const pctValue = getPctValue(stat.pctKey, hasValue);
           const barWidth = `${pctValue}%`;
 
           return (
@@ -106,9 +108,13 @@ export default function PlayerStats({
 
               {/* Stat Value & Percentile */}
               <span className="min-w-[3rem] text-right">{formatStatValue(value, stat.key)}</span>
-              <span className={`${getColorClass(pctValue)} font-bold`}>
-                {formatPercentile(pct)}
-              </span>
+              {hasValue ? (
+                <span className={`${getColorClass(pctValue)} font-bold`}>
+                  {formatPercentile(pct)}
+                </span>
+              ) : (
+                <span className="font-bold text-gray-400" />
+              )}
             </div>
           );
         })}
@@ -121,7 +127,8 @@ export default function PlayerStats({
             {onOffDetailConfig.map((stat) => {
               const value = playerStats[stat.key];
               const pct = playerPercentiles[stat.pctKey];
-              const pctValue = getPctValue(stat.pctKey);
+              const hasValue = Number.isFinite(value);
+              const pctValue = getPctValue(stat.pctKey, hasValue);
               const barWidth = `${pctValue}%`;
 
               return (
@@ -134,7 +141,11 @@ export default function PlayerStats({
                     />
                   </div>
                   <span className="min-w-[3.5rem] text-right">{formatStatValue(value, stat.key)}</span>
-                  <span className={`${getColorClass(pctValue)} font-bold`}>{formatPercentile(pct)}</span>
+                  {hasValue ? (
+                    <span className={`${getColorClass(pctValue)} font-bold`}>{formatPercentile(pct)}</span>
+                  ) : (
+                    <span className="font-bold text-gray-400" />
+                  )}
                 </div>
               );
             })}

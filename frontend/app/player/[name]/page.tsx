@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import SearchBar from "@/app/components/SearchBar";
 import PlayerInfo from "./PlayerInfo";
 import PlayerStats from "./PlayerStats";
@@ -72,9 +73,9 @@ export default function PlayerPage() {
   const header = (
     <header className="p-4 border-b border-gray-200 dark:border-gray-700">
       <div className="container mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-        <h1 className="text-4xl font-bold text-gray-800 dark:text-gray-100">
+        <Link href="/" className="text-4xl font-bold text-gray-800 dark:text-gray-100 hover:opacity-80 transition-opacity">
           HoopCast
-        </h1>
+        </Link>
         <SearchBar placeholder="Search player..." />
       </div>
     </header>
