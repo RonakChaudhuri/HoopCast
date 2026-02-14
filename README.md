@@ -1,125 +1,175 @@
 # HoopCast
 
-HoopCast is an NBA statcast-style web application that displays advanced statistics and percentile rankings for NBA players. It provides detailed per-36-minute and advanced metrics for current season players, allowing users to search for a player and view their advanced stats in an interactive, visually appealing interface. Similar to baseball savants statcast, you can view players percentile in each advanced stat.
+HoopCast is an NBA player analytics app that combines traditional stats, advanced metrics, percentile rankings, and on/off impact data in a searchable UI.
+
+## Live Deployments
+
+- Frontend: deployed on Vercel
+- Backend API: deployed on Render at `https://hoopcast.onrender.com`
+- Database: Supabase (PostgreSQL)
 
 ## Features
 
-- **Player Search:**  
-  Easily search for any active NBA player by name.
-- **Advanced & Traditional Stats:**  
-  View per-36-minute stats (points, rebounds, assists) along with advanced metrics such as Offensive Rating, Defensive Rating, True Shooting Percentage, Usage Percentage, Effective FG Percentage, PIE, etc.
-- **Percentile Rankings:**  
-  Compare player performance with percentile rankings displayed with color-coded visual cues (red for top performers, blue for lower performers).
-- **Modern, Minimalist UI:**  
-  A responsive design built with Next.js and Tailwind CSS that mirrors the simplicity of a search engine interface.
+- Player search with autocomplete suggestions
+- Current player profile pages with:
+  - Traditional stats
+  - Per-36 stats (PTS/REB/AST/STL/BLK)
+  - Advanced metrics (TS%, USG%, eFG%)
+  - On/off impact metrics (on-court, off-court, and on-off differentials)
+- Percentile bars for key metrics
+- On/Off deep-dive panel with detailed ratings and percentiles
 
 ## Tech Stack
 
-- **Frontend:**
-  - Next.js (App Router)
-  - React
-  - Tailwind CSS
-- **Backend:**
-  - FastAPI
-  - Python
-  - nba_api (to fetch NBA statistics)
-- **Database:**
-  - PostgreSQL
-- **Version Control:**
-  - Git and GitHub
+- Frontend: Next.js (App Router), React, Tailwind CSS
+- Backend: FastAPI, `nba_api`, `psycopg2`
+- Database: Supabase PostgreSQL
+- Hosting: Vercel (frontend), Render (backend)
 
-## Installation & Setup
+## Repository Structure
 
-### Prerequisites
+- `frontend/` Next.js app
+- `backend/` FastAPI API + data ingestion scripts
+- `backend/sql/` SQL migration scripts
 
-- **Node.js** (v18+ recommended)
-- **Python** (v3.9+ recommended)
-- **PostgreSQL** (v12+ recommended)
-- **Git**
+## Local Development Setup
 
-### Backend Setup
+## 1) Backend Setup
 
-1. **Navigate to the backend directory:**
-
-   ```
-   bash
-   cd HoopCast/backend
-
+1. Go to backend:
+   ```bash
+   cd backend
    ```
 
-2. **Create a virtual environment and activate it:**
-
-   ```
+2. Create and activate virtual env:
+   ```bash
    python -m venv venv
-   # Windows:
-   venv\Scripts\activate
-   # macOS/Linux:
+   # Windows (PowerShell)
+   .\venv\Scripts\Activate.ps1
+   # macOS/Linux
    source venv/bin/activate
-
    ```
 
-3. **Install Python dependencies:**
-
-   ```
-    pip install fastapi uvicorn psycopg2-binary nba_api python-dotenv
-
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
    ```
 
-4. **Set up environment variables:**
-
-   ```
-    DATABASE=hoopcast
-    USER=your_db_user
-    PASSWORD=your_db_password
-    HOST=localhost
-    PORT=5432
-
+4. Create `backend/.env`:
+   ```env
+   DATABASE_URL=postgresql://postgres.<project_ref>:<db_password>@<pooler_host>:6543/postgres
+   DB_SSLMODE=require
    ```
 
-5. **Test the backend:**
-
-   Visit http://127.0.0.1:8000/docs to view and test your API endpoints.
-
-### Frontend Setup
-
-1. **Navigate to the app (frontend) directory::**
-
-   ```
-    cd HoopCast/frontend
-
+   Optional CORS overrides (recommended for deployed frontend):
+   ```env
+   CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,https://<your-vercel-domain>.vercel.app
+   CORS_ORIGIN_REGEX=https://.*\.vercel\.app
    ```
 
-2. **Install Node.js dependencies:**
-
-3. **Run the Next.js development server:**
-
+5. Run backend API:
+   ```bash
+   uvicorn main:app --reload --host 127.0.0.1 --port 8000
    ```
+
+6. API docs:
+   - `http://127.0.0.1:8000/docs`
+
+## 2) Frontend Setup
+
+1. Go to frontend:
+   ```bash
+   cd frontend
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Create `frontend/.env.local`:
+   ```env
+   NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
+   NEXT_PUBLIC_DEFAULT_SEASON=2025-26
+   ```
+
+4. Run frontend:
+   ```bash
    npm run dev
-
    ```
 
-4. **Access the frontend:**
+5. Open:
+   - `http://localhost:3000`
 
-   Open http://localhost:3000 in your browser to see the HoopCast homepage.
+## Database (Supabase)
 
-## Usage
+This project uses Supabase PostgreSQL.
 
-### Homepage
+Current schema includes:
+- `players`
+- `traditional_stats`
+- `advanced_stats`
+- `player_season_stats` (view)
+- `current_season_stats` (view)
 
-- The homepage features a large, centered search bar with the "HoopCast" title.
-- Type a player’s name (e.g., "LeBron James") into the search bar and hit enter to view the player's detail page.
+Additional on/off columns are added via:
+- `backend/sql/add_on_off_columns.sql`
 
-### Player Detail Page
+Run SQL migrations in Supabase SQL Editor.
 
-- The player detail page displays:
-  - **Basic Player Information:** Name, team, position, birthdate, height, and weight.
-  - **Stats & Percentiles:** Advanced and traditional stats with color-coded percentiles to indicate how the player ranks in each category.
-- A search bar at the top of the page allows you to quickly search for another player.
+## Data Ingestion Scripts
 
-## Contributing
+From `backend/`:
 
-Contributions are welcome! Feel free to open issues or submit pull requests with improvements, bug fixes, or new features.
+1. Sync players:
+   ```bash
+   python fetch_all_players.py
+   ```
+
+2. Sync stats:
+   ```bash
+   python fetch_all_stats.py
+   ```
+
+Defaults currently focus on current players and recent seasons configured in script defaults.
+
+## Deployment
+
+## Backend (Render)
+
+- Root/workdir: `backend`
+- Build command:
+  ```bash
+  pip install -r requirements.txt
+  ```
+- Start command:
+  ```bash
+  uvicorn main:app --host 0.0.0.0 --port $PORT
+  ```
+- Required env vars:
+  - `DATABASE_URL`
+  - `DB_SSLMODE=require`
+  - `CORS_ORIGINS` (include localhost + Vercel domain)
+  - `CORS_ORIGIN_REGEX=https://.*\.vercel\.app`
+
+Live API URL:
+- `https://hoopcast.onrender.com`
+
+## Frontend (Vercel)
+
+- Project root: `frontend`
+- Required env vars:
+  ```env
+  NEXT_PUBLIC_API_BASE_URL=https://hoopcast.onrender.com
+  NEXT_PUBLIC_DEFAULT_SEASON=2025-26
+  ```
+
+## Troubleshooting
+
+- If API works in browser/Postman but fails from Vercel frontend, check CORS settings in backend env/config.
+- If Render deploy fails on `psycopg2` import, clear build cache and redeploy.
+- If frontend changes to env vars do not apply, redeploy/restart so Next.js picks up new env values.
 
 ## License
 
-This project is licensed under the MIT License.
+MIT
